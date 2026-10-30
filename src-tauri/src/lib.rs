@@ -100,6 +100,7 @@ mod install_features;
 mod installer_handoff;
 #[cfg(desktop)]
 mod media_controls;
+#[cfg(desktop)]
 mod modal_overlay;
 #[cfg(desktop)]
 mod monitors;
@@ -123,6 +124,7 @@ mod music;
 mod pip;
 #[cfg(target_os = "macos")]
 mod pip_mac;
+#[cfg(desktop)]
 mod pip_window;
 #[cfg(desktop)]
 mod roku;

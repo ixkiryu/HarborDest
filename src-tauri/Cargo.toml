@@ -167,6 +167,8 @@ reqwest = { version = "0.12", default-features = false, features = ["rustls-tls"
 [target.'cfg(target_os = "ios")'.dependencies]
 libmpv2 = "4"
 libmpv2-sys = "4"
+# thumb_cache (poster cache behind http_fetch) keeps its index in SQLite.
+rusqlite = { version = "0.32.0", features = ["bundled"] }
 
 [target.'cfg(windows)'.dependencies]
 windows = { version = "0.62", features = [
