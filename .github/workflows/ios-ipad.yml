@@ -22,6 +22,8 @@ jobs:
     timeout-minutes: 120
     env:
       APPLE_DIR: src-tauri/gen/apple
+      # Same as the desktop workflows: tsc runs out of the default heap on this codebase.
+      NODE_OPTIONS: --max-old-space-size=6144
       RUST_TARGET: aarch64-apple-ios
     steps:
       - uses: actions/checkout@v4
