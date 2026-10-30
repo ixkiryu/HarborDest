@@ -1,16 +1,15 @@
 use std::collections::HashMap;
-use std::ffi::CString;
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Duration;
 
 use libmpv2::events::{Event, EventContext, PropertyData};
 use libmpv2::mpv_node::MpvNode;
-use libmpv2::{Format, Mpv, MpvInitializer};
+use libmpv2::{Mpv, MpvInitializer};
 
 pub(crate) use crate::mpv_common::{
-    event_to_payload, mpv_argv_command, mpv_node_to_json, mpv_property_blocked, value_to_arg,
-    MpvProbe, PropertyKind, MPV_ALLOWED_COMMANDS, OBSERVED_PROPS,
+    event_to_payload, mpv_argv_command, mpv_property_blocked, value_to_arg, MpvProbe,
+    MPV_ALLOWED_COMMANDS, OBSERVED_PROPS,
 };
 
 use serde::{Deserialize, Serialize};
