@@ -1,3 +1,4 @@
+import "@/lib/ios-window-shim";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { StrictMode, Suspense, lazy, useCallback, useEffect, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
