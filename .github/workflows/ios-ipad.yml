@@ -63,9 +63,12 @@ jobs:
         run: pnpm build
 
       - name: Build Rust library
+        # tauri/custom-protocol is what `tauri build` turns on: it serves the bundled
+        # frontend instead of loading the dev server URL.
         run: |
           cargo rustc --manifest-path src-tauri/Cargo.toml --release \
-            --target "$RUST_TARGET" --lib --crate-type staticlib --no-default-features
+            --target "$RUST_TARGET" --lib --crate-type staticlib --no-default-features \
+            --features tauri/custom-protocol
           mkdir -p "$APPLE_DIR/Externals/arm64/release"
           cp "src-tauri/target/$RUST_TARGET/release/libharbor_lib.a" \
             "$APPLE_DIR/Externals/arm64/release/libapp.a"
