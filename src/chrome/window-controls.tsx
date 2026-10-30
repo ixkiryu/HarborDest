@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import { close, minimize, toggleMaximize, useMaximized } from "@/lib/window";
 import { useSettings } from "@/lib/settings";
 import { useT } from "@/lib/i18n";
+import { isIos } from "@/lib/platform";
 
 const IS_TAURI = typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
 
@@ -9,7 +10,8 @@ export function WindowControls() {
   const { settings } = useSettings();
   const maxed = useMaximized();
   const t = useT();
-  if (!IS_TAURI || settings.useNativeTitleBar || settings.hybridTitleBar) return null;
+  // The iPad app is always full screen and has no window to minimize or close.
+  if (!IS_TAURI || isIos() || settings.useNativeTitleBar || settings.hybridTitleBar) return null;
   return (
     <div data-tauri-drag-region="false" className="flex items-center gap-2">
       <Ctl label={t("chrome.minimize")} onClick={minimize}>

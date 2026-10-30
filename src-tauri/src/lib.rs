@@ -105,6 +105,10 @@ mod modal_overlay;
 mod monitors;
 #[cfg(desktop)]
 mod mpv;
+#[cfg(any(desktop, target_os = "ios"))]
+mod mpv_common;
+#[cfg(target_os = "ios")]
+mod mpv_ios;
 #[cfg(target_os = "linux")]
 mod linux_gamescope;
 #[cfg(target_os = "linux")]

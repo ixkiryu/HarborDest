@@ -8,7 +8,7 @@ export function isWeb(): boolean {
   return typeof window !== "undefined" && !("__TAURI_INTERNALS__" in window);
 }
 
-export type OsClass = "linux" | "macos" | "windows" | "android" | "web";
+export type OsClass = "linux" | "macos" | "windows" | "android" | "ios" | "web";
 
 function detectOs(): OsClass {
   if (!isTauri()) return "web";
@@ -17,6 +17,7 @@ function detectOs(): OsClass {
   if (platform === "macos") return "macos";
   if (platform === "windows") return "windows";
   if (platform === "android") return "android";
+  if (platform === "ios") return "ios";
   return "web";
 }
 
@@ -42,6 +43,15 @@ export function isMacDesktop(): boolean {
 
 export function isWindowsDesktop(): boolean {
   return osClass() === "windows";
+}
+
+export function isIos(): boolean {
+  return osClass() === "ios";
+}
+
+/** Platforms whose embedded mpv draws on a native surface under a transparent webview. */
+export function hasNativeVideoUnderWebview(): boolean {
+  return isLinuxDesktop() || isMacDesktop() || isIos();
 }
 
 export function isAndroid(): boolean {

@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { isLinuxDesktop, isMacDesktop } from "@/lib/platform";
+import { hasNativeVideoUnderWebview } from "@/lib/platform";
 import { applyMotionInterp } from "@/lib/player/motion-interp";
 import { applyRtxVideo, resetRtxVideoState } from "@/lib/player/rtx-video";
 import { applySubStyle } from "@/lib/player/sub-style";
@@ -76,7 +76,7 @@ export function useSubStyleApply(params: {
 
   useEffect(() => {
     if (engine !== "mpv") return;
-    if ((isMacDesktop() || isLinuxDesktop()) && settings.playerMpvEmbed) return;
+    if (hasNativeVideoUnderWebview() && settings.playerMpvEmbed) return;
     if (!bridgeReady) return;
     if (!mediaReady || !sourceGamma) {
       void applyRtxVideo(

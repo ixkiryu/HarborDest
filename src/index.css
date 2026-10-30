@@ -95,7 +95,10 @@ html[data-os="linux"]:not([data-mpv-embed="1"]) body,
 html[data-os="linux"]:not([data-mpv-embed="1"]) #root,
 html[data-os="macos"]:not([data-mpv-embed="1"]),
 html[data-os="macos"]:not([data-mpv-embed="1"]) body,
-html[data-os="macos"]:not([data-mpv-embed="1"]) #root {
+html[data-os="macos"]:not([data-mpv-embed="1"]) #root,
+html[data-os="ios"]:not([data-mpv-embed="1"]),
+html[data-os="ios"]:not([data-mpv-embed="1"]) body,
+html[data-os="ios"]:not([data-mpv-embed="1"]) #root {
   background: var(--color-canvas);
 }
 

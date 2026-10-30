@@ -47,6 +47,14 @@ fn lan_ip() -> Option<String> {
     None
 }
 
+// Android plays in the webview; the iPad build embeds libmpv and needs its
+// session state registered before any player command arrives.
+fn with_platform_state<R: tauri::Runtime>(builder: tauri::Builder<R>) -> tauri::Builder<R> {
+    #[cfg(target_os = "ios")]
+    let builder = builder.manage(crate::mpv_ios::MpvState::new());
+    builder
+}
+
 pub fn run() {
     // librqbit speaks rustls, and rustls refuses to work until a process wide
     // crypto provider is installed. Desktop does this too.
@@ -59,7 +67,7 @@ pub fn run() {
             stream_proxy::ProxyState::placeholder()
         });
 
-    tauri::Builder::default()
+    with_platform_state(tauri::Builder::default())
         .plugin(tauri_plugin_opener::Builder::new().open_js_links_on_click(false).build())
         .plugin(tauri_plugin_os::init())
         .plugin(tauri_plugin_shell::init())
@@ -144,6 +152,32 @@ pub fn run() {
             power::power_inhibit,
             stremio_auth::stremio_auth_start,
             transcode::cast_ffmpeg_present,
+            #[cfg(target_os = "ios")]
+            crate::mpv_ios::mpv_probe,
+            #[cfg(target_os = "ios")]
+            crate::mpv_ios::mpv_start,
+            #[cfg(target_os = "ios")]
+            crate::mpv_ios::mpv_command,
+            #[cfg(target_os = "ios")]
+            crate::mpv_ios::mpv_set_property,
+            #[cfg(target_os = "ios")]
+            crate::mpv_ios::mpv_get_property,
+            #[cfg(target_os = "ios")]
+            crate::mpv_ios::mpv_get_property_list,
+            #[cfg(target_os = "ios")]
+            crate::mpv_ios::mpv_sub_add,
+            #[cfg(target_os = "ios")]
+            crate::mpv_ios::mpv_sub_remove,
+            #[cfg(target_os = "ios")]
+            crate::mpv_ios::mpv_set_geometry,
+            #[cfg(target_os = "ios")]
+            crate::mpv_ios::mpv_stop,
+            #[cfg(target_os = "ios")]
+            crate::mpv_ios::mpv_release_media,
+            #[cfg(target_os = "ios")]
+            crate::mpv_ios::mpv_restore_media_surface,
+            #[cfg(target_os = "ios")]
+            crate::mpv_ios::mpv_audio_devices,
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application")

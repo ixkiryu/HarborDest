@@ -1,0 +1,111 @@
+name: iPad build
+
+# Builds an unsigned Harbor.ipa for sideloading (iloader / SideStore re-sign it
+# with the user's own Apple ID). Runs on every push to the `ipad` branch and on
+# demand from the Actions tab.
+
+on:
+  push:
+    branches: [ipad]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: ios-ipad-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  ipa:
+    runs-on: macos-15
+    timeout-minutes: 120
+    env:
+      APPLE_DIR: src-tauri/gen/apple
+      RUST_TARGET: aarch64-apple-ios
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Rust toolchain
+        run: |
+          rustup toolchain install stable --profile minimal
+          rustup target add "$RUST_TARGET"
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+          key: ios
+
+      - name: Tools
+        run: |
+          brew list xcodegen >/dev/null 2>&1 || brew install xcodegen
+          python3 -m pip install --break-system-packages pyyaml
+
+      - name: Install frontend dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Generate Xcode project
+        run: |
+          pnpm tauri ios init --ci
+          python3 scripts/ios/patch-xcode-project.py "$APPLE_DIR/project.yml"
+          (cd "$APPLE_DIR" && xcodegen generate)
+
+      - name: Build frontend
+        run: pnpm build
+
+      - name: Build Rust library
+        run: |
+          cargo rustc --manifest-path src-tauri/Cargo.toml --release \
+            --target "$RUST_TARGET" --lib --crate-type staticlib --no-default-features
+          mkdir -p "$APPLE_DIR/Externals/arm64/release"
+          cp "src-tauri/target/$RUST_TARGET/release/libharbor_lib.a" \
+            "$APPLE_DIR/Externals/arm64/release/libapp.a"
+
+      - name: Build app (unsigned)
+        run: |
+          project=$(ls -d "$APPLE_DIR"/*.xcodeproj | head -1)
+          scheme=$(basename "$project" .xcodeproj)_iOS
+          mkdir -p build
+          if ! xcodebuild -project "$project" -scheme "$scheme" \
+            -configuration release -sdk iphoneos -destination 'generic/platform=iOS' \
+            -derivedDataPath build/ios \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" \
+            build > build/xcodebuild.log 2>&1; then
+            grep -E "error:|Undefined symbol" build/xcodebuild.log | head -80
+            tail -40 build/xcodebuild.log
+            exit 1
+          fi
+
+      - name: Package IPA
+        run: |
+          app=$(ls -d build/ios/Build/Products/release-iphoneos/*.app | head -1)
+          mkdir -p dist-ios/Payload
+          cp -R "$app" dist-ios/Payload/
+          (cd dist-ios && zip -qry ../Harbor-iPad.ipa Payload)
+          ls -lh Harbor-iPad.ipa
+
+      - name: Upload build log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: xcodebuild-log
+          path: build/xcodebuild.log
+          if-no-files-found: ignore
+
+      - name: Publish release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ipad-${{ github.run_number }}
+          name: Harbor iPad build ${{ github.run_number }}
+          prerelease: true
+          files: Harbor-iPad.ipa
+          body: |
+            Unsigned build for sideloading. Download Harbor-iPad.ipa and install it with iloader.
+            Commit: ${{ github.sha }}

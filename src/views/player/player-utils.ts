@@ -3,7 +3,7 @@ import { createMpvBridge, probeMpv, type MpvRect } from "@/lib/player/mpv";
 import { createExternalMpvBridge, type ExternalMpvOptions } from "@/lib/player/external-mpv";
 import type { PlayerBridge } from "@/lib/player/bridge";
 import type { MonitorInfo } from "@/lib/monitors";
-import { isLinuxDesktop, isMacDesktop, isWindowsDesktop } from "@/lib/platform";
+import { hasNativeVideoUnderWebview, isWindowsDesktop } from "@/lib/platform";
 
 export const SYNC_DRIFT_TOLERANCE_S = 0.6;
 export const SYNC_SUPPRESS_MS = 1400;
@@ -38,11 +38,10 @@ export function embedFlags(
   const embedOn = engine === "mpv" && mpvEmbed;
   const mpvEmbedWindowsActive = embedOn && isWindowsDesktop();
   const hasFrame = videoWidth > 0 && videoHeight > 0;
-  const macShowing = embedOn && isMacDesktop() && hasFrame;
-  const linuxShowing = embedOn && isLinuxDesktop() && hasFrame;
+  const nativeShowing = embedOn && hasNativeVideoUnderWebview() && hasFrame;
   return {
     mpvEmbedWindowsActive,
-    stageBg: mpvEmbedWindowsActive || macShowing || linuxShowing ? "" : "bg-black",
+    stageBg: mpvEmbedWindowsActive || nativeShowing ? "" : "bg-black",
   };
 }
 
