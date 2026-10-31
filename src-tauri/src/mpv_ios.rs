@@ -124,6 +124,19 @@ pub async fn mpv_start(
         init.set_property("gpu-api", "vulkan")?;
         init.set_property("gpu-context", "moltenvk")?;
         init.set_property("hwdec", "videotoolbox")?;
+        // The options below follow Nuvio's iOS player (MPVKit + MoltenVK). They
+        // are tuning, so an mpv build without one of them still starts.
+        // VideoToolbox sessions can be invalidated by the system (Control
+        // Center, PiP); keep hardware decoding and let FFmpeg recreate them.
+        let _ = init.set_property("hwdec-software-fallback", "300");
+        let _ = init.set_property("ao", "audiounit");
+        let _ = init.set_property("audio-channels", "auto");
+        let _ = init.set_property("audio-fallback-to-null", "yes");
+        let _ = init.set_property("vulkan-swap-mode", "fifo");
+        let _ = init.set_property("vulkan-queue-count", "1");
+        let _ = init.set_property("vulkan-async-compute", "no");
+        let _ = init.set_property("vulkan-async-transfer", "no");
+        let _ = init.set_property("vulkan-disable-interop", "yes");
         init.set_property("video-rotate", "no")?;
         // The page draws the subtitles over the video (the same path as the
         // embedded desktop player), so mpv must not draw its own copy.
@@ -135,10 +148,12 @@ pub async fn mpv_start(
         // was sized for; iOS kills the app outright if it grows past its limit.
         init.set_property("demuxer-max-bytes", "150MiB")?;
         init.set_property("demuxer-max-back-bytes", "50MiB")?;
-        init.set_property("target-colorspace-hint", if hdr_to_sdr { "no" } else { "yes" })?;
-        init.set_property("input-default-bindings", "no")?;
-        init.set_property("osc", "no")?;
-        init.set_property("terminal", "no")?;
+        let _ = init.set_property("target-colorspace-hint", if hdr_to_sdr { "no" } else { "yes" });
+        // MPVKit builds mpv for iOS without Lua, so `osc` (a Lua script option)
+        // does not exist there; none of these may stop mpv from starting.
+        let _ = init.set_property("input-default-bindings", "no");
+        let _ = init.set_property("osc", "no");
+        let _ = init.set_property("terminal", "no");
         Ok(())
     })
     .map_err(|e| format!("mpv init: {e}"))?;

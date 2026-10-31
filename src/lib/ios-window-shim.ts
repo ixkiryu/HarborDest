@@ -98,8 +98,93 @@ function install(): void {
     if (match) return Promise.resolve(windowAnswer(match[2]));
     const id = ++callSeq;
     pending.set(id, { cmd, at: performance.now() });
-    return invoke(cmd, args, options).finally(() => pending.delete(id));
+    if (cmd.startsWith("mpv_") && cmd !== "mpv_get_property" && cmd !== "mpv_set_geometry") {
+      trace(`→ ${cmd} ${describeArgs(args)}`);
+    }
+    return invoke(cmd, args, options)
+      .catch((error: unknown) => {
+        trace(`✗ ${cmd}: ${String(error).slice(0, 300)}`);
+        throw error;
+      })
+      .finally(() => pending.delete(id));
   };
+  void import("@tauri-apps/api/event").then(({ listen }) =>
+    listen<Record<string, unknown>>("mpv://event", ({ payload }) => {
+      const kind = String(payload.event);
+      if (kind === "property-change") {
+        const name = String(payload.name);
+        if (WATCHED_PROPS.has(name)) trace(`mpv ${name} = ${JSON.stringify(payload.data)?.slice(0, 120)}`);
+      } else if (kind === "log") {
+        trace(`mpv log ${String(payload.level)} [${String(payload.prefix)}] ${String(payload.text).trim()}`);
+      } else {
+        trace(`mpv ${kind}${payload.reason ? ` (${String(payload.reason)})` : ""}`);
+      }
+    }),
+  );
+  addTraceButton();
+}
+
+// Playback trace, shown from a small button in the corner. Temporary while the
+// iPad player is being brought up: it is the only way to see what mpv did.
+const WATCHED_PROPS = new Set(["duration", "pause", "eof-reached", "dwidth", "dheight", "paused-for-cache", "path"]);
+const traceLines: string[] = [];
+
+function trace(line: string): void {
+  const t = new Date().toISOString().slice(11, 19);
+  traceLines.push(`${t} ${line}`);
+  if (traceLines.length > 300) traceLines.shift();
+}
+
+/** Shows a URL as host + shortened path so tokens in it never reach a screenshot. */
+function redactUrl(value: string): string {
+  try {
+    const url = new URL(value);
+    const last = url.pathname.split("/").filter(Boolean).pop() ?? "";
+    return `${url.protocol}//${url.host}/…/${last.slice(0, 24)}`;
+  } catch {
+    return value.slice(0, 40);
+  }
+}
+
+function describeArgs(args: unknown): string {
+  const text = JSON.stringify(args ?? {}, (_key, value: unknown) =>
+    typeof value === "string" && /^[a-z]+:\/\//i.test(value) ? redactUrl(value) : value,
+  );
+  return (text ?? "").slice(0, 300);
+}
+
+function addTraceButton(): void {
+  const add = () => {
+    const button = document.createElement("button");
+    button.textContent = "LOG";
+    button.style.cssText =
+      "position:fixed;left:6px;bottom:6px;z-index:2147483647;padding:4px 8px;border-radius:6px;border:0;" +
+      "background:rgba(242,163,94,.85);color:#111;font:700 11px system-ui;opacity:.75";
+    let panel: HTMLDivElement | null = null;
+    button.onclick = () => {
+      if (panel) {
+        panel.remove();
+        panel = null;
+        return;
+      }
+      panel = document.createElement("div");
+      panel.style.cssText =
+        "position:fixed;left:16px;right:16px;top:16px;bottom:48px;overflow:auto;z-index:2147483646;" +
+        "background:rgba(15,15,15,.96);color:#ddd;border-radius:12px;padding:14px;" +
+        "font:11px ui-monospace,monospace;white-space:pre-wrap;-webkit-user-select:text;user-select:text";
+      const pendingNow = [...pending.values()].map(
+        (p) => `${p.cmd} (${Math.round((performance.now() - p.at) / 1000)}s)`,
+      );
+      panel.textContent =
+        `Pending:\n${pendingNow.join("\n") || "(none)"}\n\nErrors:\n${problems.join("\n") || "(none)"}` +
+        `\n\nTrace (newest last):\n${traceLines.slice(-120).join("\n") || "(empty)"}`;
+      document.body.appendChild(panel);
+      panel.scrollTop = panel.scrollHeight;
+    };
+    document.body.appendChild(button);
+  };
+  if (document.body) add();
+  else window.addEventListener("DOMContentLoaded", add, { once: true });
 }
 
 // Startup diagnostics. The iPad has no console to read, so if the splash is
