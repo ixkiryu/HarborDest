@@ -57,6 +57,13 @@ export function useChromeVisibility(params: {
   const wakeChromeRef = useRef(wakeChrome);
   wakeChromeRef.current = wakeChrome;
 
+  const hideChrome = useCallback(() => {
+    if (anyMenuOpenRef.current) return;
+    if (hideTimer.current) window.clearTimeout(hideTimer.current);
+    setChromeVisible(false);
+    setChromeHidden(true);
+  }, [setChromeHidden]);
+
   const hideForResume = useCallback(() => {
     resumeHideRef.current = true;
   }, []);
@@ -177,6 +184,7 @@ export function useChromeVisibility(params: {
   return {
     chromeVisible,
     wakeChrome,
+    hideChrome,
     hideForResume,
     anyMenuOpen,
     setAnyMenuOpen,

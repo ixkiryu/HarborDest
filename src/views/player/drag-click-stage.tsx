@@ -1,15 +1,27 @@
+import { useEffect, useMemo, useRef } from "react";
+import { createTouchStageGestures, type TouchStageActions } from "./touch-stage-gestures";
+
 export function DragClickStage(props: {
   drawMode: boolean;
   pipMode: boolean;
   onClick: () => void;
   onDoubleClick: () => void;
   onWheelVolume?: (deltaY: number) => void;
+  /** Tap zones for touch screens; see touch-stage-gestures.ts. */
+  touch?: TouchStageActions;
 }) {
-  const { drawMode, pipMode, onClick, onDoubleClick, onWheelVolume } = props;
+  const { drawMode, pipMode, onClick, onDoubleClick, onWheelVolume, touch } = props;
+  const touchRef = useRef(touch);
+  touchRef.current = touch;
+  const gestures = useMemo(() => createTouchStageGestures(() => touchRef.current!), []);
+  useEffect(() => gestures.dispose, [gestures]);
+  const touchEnabled = !!touch && !drawMode && !pipMode;
   return (
     <div
       data-player-click-stage
       className="pointer-events-auto absolute inset-0 z-[3]"
+      onTouchStart={touchEnabled ? gestures.onTouchStart : undefined}
+      onTouchEnd={touchEnabled ? gestures.onTouchEnd : undefined}
       onWheel={(e) => {
         if (drawMode || pipMode) return;
         if (e.ctrlKey || e.metaKey) return;

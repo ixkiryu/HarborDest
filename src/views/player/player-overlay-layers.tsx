@@ -1,4 +1,8 @@
 import { memo, type ComponentProps, type RefObject } from "react";
+import { isIos } from "@/lib/platform";
+import { sanitizeSeekStep } from "@/lib/seek-step";
+import { useSettings } from "@/lib/settings";
+import type { TouchStageActions } from "./touch-stage-gestures";
 import { DrawCanvas, StrokesLayer, type Stroke } from "@/components/player/draw-canvas";
 import { cropTransform } from "./hooks/use-video-fill";
 import { StreamSwitcher } from "@/components/player/stream-switcher";
@@ -127,6 +131,7 @@ export type PlayerOverlayLayersProps = {
   togglePipMode: () => void;
   setDrawMode: (fn: (d: boolean) => boolean) => void;
   wakeChrome: () => void;
+  hideChrome: () => void;
   setHideOthersDrawings: (fn: (h: boolean) => boolean) => void;
   canPickAnother: boolean;
   resolvedImdbId: string | null;
@@ -203,6 +208,17 @@ export type PlayerOverlayLayersProps = {
 };
 
 export const PlayerOverlayLayers = memo(function PlayerOverlayLayers(p: PlayerOverlayLayersProps) {
+  const { settings } = useSettings();
+  const touchActions: TouchStageActions = {
+    playPause: p.playPauseToggle,
+    seek: (side) =>
+      p.onSeekStep(
+        side === "back"
+          ? -sanitizeSeekStep(settings.seekBackStepSec, 10)
+          : sanitizeSeekStep(settings.seekForwardStepSec, 10),
+      ),
+    toggleChrome: (wasVisible) => (wasVisible ? p.hideChrome() : p.wakeChrome()),
+  };
   const roomAvatarTopLeft =
     p.inRoom && !p.avatarsHidden && p.participants.length > 0 && p.avatarsCorner === "top-left";
   const roomAvatarTopRight =
@@ -255,6 +271,7 @@ export const PlayerOverlayLayers = memo(function PlayerOverlayLayers(p: PlayerOv
         onClick={p.playPauseToggle}
         onDoubleClick={p.toggleFullscreen}
         onWheelVolume={p.onVolumeWheel}
+        touch={isIos() ? touchActions : undefined}
       />
 
       {p.tenFoot ? (

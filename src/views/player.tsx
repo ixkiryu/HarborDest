@@ -355,7 +355,7 @@ function NativePlayerView({ src }: { src: PlayerSrc }) {
     sendDraw,
   });
 
-  const { chromeVisible, wakeChrome, hideForResume, setAnyMenuOpen, cursorStyle } =
+  const { chromeVisible, wakeChrome, hideChrome, hideForResume, setAnyMenuOpen, cursorStyle } =
     useChromeVisibility({
       playing,
       drawMode,
@@ -1546,6 +1546,7 @@ function NativePlayerView({ src }: { src: PlayerSrc }) {
     togglePipMode,
     setDrawMode,
     wakeChrome,
+    hideChrome,
     setHideOthersDrawings,
     canPickAnother: !liveOverlay.isLive || !inRoom || isHost,
     resolvedImdbId,

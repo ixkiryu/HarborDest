@@ -104,13 +104,20 @@ jobs:
           path: build/xcodebuild.log
           if-no-files-found: ignore
 
+      # The iPad version lives in src-tauri/ios/VERSION (11.1, 11.2, …) so each
+      # set of changes gets its own release name.
+      - name: Read iPad version
+        id: version
+        run: echo "value=$(tr -d '[:space:]' < src-tauri/ios/VERSION)" >> "$GITHUB_OUTPUT"
+
       - name: Publish release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ipad-${{ github.run_number }}
-          name: Harbor iPad build ${{ github.run_number }}
+          tag_name: ipad-${{ steps.version.outputs.value }}
+          name: Harbor iPad ${{ steps.version.outputs.value }}
+          make_latest: true
           prerelease: true
           files: Harbor-iPad.ipa
           body: |
             Unsigned build for sideloading. Download Harbor-iPad.ipa and install it with iloader.
-            Commit: ${{ github.sha }}
+            Build ${{ github.run_number }}, commit ${{ github.sha }}
