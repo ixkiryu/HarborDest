@@ -9,6 +9,10 @@
 // build lacks keep rejecting: their callers already catch that and fall back,
 // and resolving them with a placeholder breaks those fallbacks.
 //
+// Tauri makes `__TAURI_INTERNALS__.invoke` read-only, so the shim installs
+// `__HARBOR_INVOKE_HOOK__`, which the JS API calls instead (see the
+// tauri-invoke-hook plugin in vite.config.ts).
+//
 // Imported first by main.tsx so it is in place before any module calls in.
 
 import { platform } from "@tauri-apps/plugin-os";
@@ -87,15 +91,15 @@ function install(): void {
     return;
   }
   if (!isIos) return;
+  watchStartup();
   const invoke = internals.invoke.bind(internals);
-  internals.invoke = (cmd, args, options) => {
+  (globalThis as { __HARBOR_INVOKE_HOOK__?: Invoke }).__HARBOR_INVOKE_HOOK__ = (cmd, args, options) => {
     const match = /^plugin:(window|webview)\|(.+)$/.exec(cmd);
     if (match) return Promise.resolve(windowAnswer(match[2]));
     const id = ++callSeq;
     pending.set(id, { cmd, at: performance.now() });
     return invoke(cmd, args, options).finally(() => pending.delete(id));
   };
-  watchStartup();
 }
 
 // Startup diagnostics. The iPad has no console to read, so if the splash is

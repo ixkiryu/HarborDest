@@ -22,6 +22,32 @@ function silenceMediapipeSourcemap() {
   };
 }
 
+// Tauri defines `__TAURI_INTERNALS__.invoke` as read-only, so the iPad build
+// cannot wrap it at runtime (src/lib/ios-window-shim.ts). Route the JS API's
+// one call site through an optional hook instead. Without the hook, which only
+// the iPad installs, the call is unchanged.
+const TAURI_INVOKE_CALL = "window.__TAURI_INTERNALS__.invoke(cmd, args, options)";
+function tauriInvokeHook() {
+  return {
+    name: "tauri-invoke-hook",
+    enforce: "pre" as const,
+    transform(code: string, id: string) {
+      const file = id.split("?")[0].replace(/\\/g, "/");
+      if (!/\/@tauri-apps\/api\/core\.(m?js|cjs)$/.test(file)) return null;
+      if (!code.includes(TAURI_INVOKE_CALL)) {
+        throw new Error(`tauri-invoke-hook: invoke call not found in ${file}`);
+      }
+      return {
+        code: code.replace(
+          TAURI_INVOKE_CALL,
+          `(globalThis.__HARBOR_INVOKE_HOOK__ ? globalThis.__HARBOR_INVOKE_HOOK__(cmd, args, options) : ${TAURI_INVOKE_CALL})`,
+        ),
+        map: null,
+      };
+    },
+  };
+}
+
 function servePublicMediapipe() {
   return {
     name: "serve-public-mediapipe",
@@ -53,7 +79,13 @@ export default defineConfig(({ mode }) => {
   const devHost = process.env.TAURI_DEV_HOST;
   return {
     staged: { "*": "vp check --fix" },
-    plugins: [react(), tailwindcss(), silenceMediapipeSourcemap(), servePublicMediapipe()],
+    plugins: [
+      tauriInvokeHook(),
+      react(),
+      tailwindcss(),
+      silenceMediapipeSourcemap(),
+      servePublicMediapipe(),
+    ],
     clearScreen: false,
     define: {
       __APP_VERSION__: JSON.stringify(pkg.version),
