@@ -46,13 +46,15 @@ export function AudioMenu(props: Props) {
   }, [open, forceInline, useOverlay, onOpenChange]);
 
   useEffect(() => {
-    if (useOverlay) return;
+    // The inline panel is also used when the overlay window cannot open (the
+    // iPad has none), and it must close on an outside tap there too.
+    if (useOverlay && !forceInline) return;
     if (!open) return;
     const close = (e: MouseEvent) => {
       if (!wrap.current?.contains(e.target as Node)) setOpen(false);
     };
     return watchOutsideMouseDown(close);
-  }, [open, useOverlay]);
+  }, [open, useOverlay, forceInline]);
 
   useEffect(() => {
     if (!useOverlay) return;

@@ -102,6 +102,12 @@ html[data-os="ios"]:not([data-mpv-embed="1"]) #root {
   background: var(--color-canvas);
 }
 
+/* iPad: the player controls fade out faster than they fade in, so a tap that
+   hides them feels immediate. */
+html[data-os="ios"] [data-harbor-player] .transition-opacity.opacity-0 {
+  transition-duration: 120ms !important;
+}
+
 /* The mpv surface is a native sibling under the transparent webview, so a
    backdrop-filter inside the player can only sample the webview's own pixels:
    over the video it blurs nothing. It still recomposites the page every frame,

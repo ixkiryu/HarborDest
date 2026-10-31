@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { getSeekHovering, subscribeSeekHovering } from "@/lib/player/playback-clock";
+import { PLAYER_HIDE_CHROME_EVENT } from "@/lib/ios-player-touch";
 import { CHROME_HIDE_MS_PAUSED, CHROME_HIDE_MS_PLAYING, CHROME_HIDE_MS_RESUME } from "../player-utils";
 
 const UI_SCALE_ACTIVITY_EVENT = "harbor:ui-scale-activity";
@@ -63,6 +64,11 @@ export function useChromeVisibility(params: {
     setChromeVisible(false);
     setChromeHidden(true);
   }, [setChromeHidden]);
+
+  useEffect(() => {
+    window.addEventListener(PLAYER_HIDE_CHROME_EVENT, hideChrome);
+    return () => window.removeEventListener(PLAYER_HIDE_CHROME_EVENT, hideChrome);
+  }, [hideChrome]);
 
   const hideForResume = useCallback(() => {
     resumeHideRef.current = true;

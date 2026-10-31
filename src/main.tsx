@@ -7,6 +7,7 @@ import { hydrateCustomThemes } from "@/lib/custom-themes";
 import { getUiLanguage } from "@/lib/i18n/store";
 import { ensureUiLocale } from "@/lib/i18n/load-locale";
 import { applyOsDataset, osClass } from "@/lib/platform";
+import { installIosPlayerTouch } from "@/lib/ios-player-touch";
 import { loadSecrets } from "@/lib/secret-store";
 import { getInstallFeatures, loadInstallFeatures } from "@/lib/features/install";
 import { initSubtitleCache } from "@/lib/subtitles/subtitle-cache";
@@ -111,6 +112,7 @@ if (isDjDeck) {
 }
 const isRemote = detectRemoteMode();
 applyOsDataset();
+if (osClass() === "ios") installIosPlayerTouch();
 if (isRemote) {
   document.documentElement.style.overflow = "auto";
   document.body.style.overflow = "auto";

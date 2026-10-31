@@ -47,7 +47,9 @@ export function SubtitleMenu(props: Props) {
   }, [open, forceInline, useOverlay, onOpenChange]);
 
   useEffect(() => {
-    if (useOverlay) return;
+    // The inline panel is also used when the overlay window cannot open (the
+    // iPad has none), and it must close on an outside tap there too.
+    if (useOverlay && !forceInline) return;
     if (!open) return;
     const close = (e: MouseEvent) => {
       const target = e.target as HTMLElement | null;
@@ -57,7 +59,7 @@ export function SubtitleMenu(props: Props) {
       setOpen(false);
     };
     return watchOutsideMouseDown(close);
-  }, [open, useOverlay]);
+  }, [open, useOverlay, forceInline]);
 
   useEffect(() => {
     if (!useOverlay) return;

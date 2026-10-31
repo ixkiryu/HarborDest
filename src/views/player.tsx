@@ -49,7 +49,7 @@ import {
   restartCastServer,
 } from "@/lib/stremio-server";
 import { playbackStartupProfile } from "@/lib/player/startup-profile";
-import { isWeb } from "@/lib/platform";
+import { isIos, isWeb } from "@/lib/platform";
 import { usePauseOnInactive } from "./player/hooks/use-pause-on-inactive";
 import { spoilerMaskFor } from "@/lib/spoilers";
 import { usePlayerWatched } from "./player/hooks/use-player-watched";
@@ -1451,6 +1451,13 @@ function NativePlayerView({ src }: { src: PlayerSrc }) {
     }
   }, [src]);
 
+  // The iPad app is always full screen, so its fullscreen button switches the
+  // picture between filling the screen and the video's own aspect ratio.
+  const iosFill = isIos();
+  const fillsScreen = videoFill.mode === "fill";
+  const toggleFillOrFullscreen = iosFill
+    ? () => videoFill.setMode(fillsScreen ? "fit" : "fill")
+    : toggleFullscreen;
   const overlayProps: PlayerOverlayLayersProps = {
     tenFoot,
     snap,
@@ -1487,7 +1494,7 @@ function NativePlayerView({ src }: { src: PlayerSrc }) {
     pickAnother,
     pickAnotherOrGuide,
     playPauseToggle,
-    toggleFullscreen,
+    toggleFullscreen: toggleFillOrFullscreen,
     onVolumeWheel,
     onVolumeFeedback: showVolumeFeedback,
     isLocalSrc,
@@ -1537,7 +1544,7 @@ function NativePlayerView({ src }: { src: PlayerSrc }) {
     playerShellId: settings.playerShellId,
     shellSnap,
     snapRef,
-    fullscreen,
+    fullscreen: iosFill ? fillsScreen : fullscreen,
     showDraw: inRoom && roomSnapshot.participants.length > 1 && !cast.castDevice,
     metaId: src.meta.id,
     setAnyMenuOpen,

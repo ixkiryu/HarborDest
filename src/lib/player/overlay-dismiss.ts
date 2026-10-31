@@ -1,3 +1,5 @@
+import { isIos } from "@/lib/platform";
+
 let lastDismiss = 0;
 
 export function noteOverlayDismiss(): void {
@@ -19,6 +21,10 @@ export function watchOutsideMouseDown(handler: (e: MouseEvent) => void): () => v
     noteOverlayDismiss();
     handler(e);
   };
-  window.addEventListener("mousedown", wrapped);
-  return () => window.removeEventListener("mousedown", wrapped);
+  // iPadOS only sends mousedown for taps on elements it considers clickable,
+  // and the player stage cancels the emulated mouse events for its own taps,
+  // so on touch a tap outside never closed the menu. Pointer events always fire.
+  const type = isIos() ? "pointerdown" : "mousedown";
+  window.addEventListener(type, wrapped as EventListener);
+  return () => window.removeEventListener(type, wrapped as EventListener);
 }

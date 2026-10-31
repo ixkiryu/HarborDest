@@ -218,6 +218,7 @@ export const PlayerOverlayLayers = memo(function PlayerOverlayLayers(p: PlayerOv
           : sanitizeSeekStep(settings.seekForwardStepSec, 10),
       ),
     toggleChrome: (wasVisible) => (wasVisible ? p.hideChrome() : p.wakeChrome()),
+    hideChrome: p.hideChrome,
   };
   const roomAvatarTopLeft =
     p.inRoom && !p.avatarsHidden && p.participants.length > 0 && p.avatarsCorner === "top-left";

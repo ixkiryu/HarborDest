@@ -9,8 +9,8 @@
 
 use std::collections::HashMap;
 use std::ffi::c_void;
-use std::sync::Arc;
-use std::time::Duration;
+use std::sync::{Arc, OnceLock};
+use std::time::{Duration, Instant};
 
 use libmpv2::events::{Event, EventContext};
 use libmpv2::mpv_node::MpvNode;
@@ -31,6 +31,50 @@ extern "C" {
     fn harbor_ios_video_attach(webview: *mut c_void) -> i64;
     fn harbor_ios_video_set_frame(webview: *mut c_void, x: f64, y: f64, w: f64, h: f64);
     fn harbor_ios_video_detach();
+    fn harbor_ios_system_volume() -> f32;
+    fn harbor_ios_set_system_volume(value: f32);
+}
+
+// System volume sync. mpv plays at 100% and the player's volume is the iPad's
+// own: Harbor's slider moves the system volume, and the side buttons move
+// Harbor's slider. Both directions reach the frontend as mpv `volume`
+// property changes, so the player code is the same as on desktop.
+
+static APP: OnceLock<AppHandle> = OnceLock::new();
+/// The player restores its saved volume right after it starts; those writes
+/// must not overwrite the iPad's volume, so they are ignored until this time.
+static VOLUME_WRITES_FROM: std::sync::Mutex<Option<Instant>> = std::sync::Mutex::new(None);
+const STARTUP_VOLUME_HOLD: Duration = Duration::from_millis(2500);
+
+fn emit_volume(app: &AppHandle, fraction: f32) {
+    let percent = (fraction.clamp(0.0, 1.0) * 100.0).round();
+    let _ = app.emit(
+        "mpv://event",
+        json!({ "event": "property-change", "name": "volume", "data": percent }),
+    );
+}
+
+/// Called by HarborVideoSurface.swift when the system volume changes.
+#[no_mangle]
+pub extern "C" fn harbor_ios_volume_changed(value: f32) {
+    if let Some(app) = APP.get() {
+        emit_volume(app, value);
+    }
+}
+
+fn set_system_volume(app: &AppHandle, value: &Value) {
+    let hold = VOLUME_WRITES_FROM.lock().ok().and_then(|g| *g);
+    if hold.is_some_and(|until| Instant::now() < until) {
+        return;
+    }
+    let percent = match value {
+        Value::Number(n) => n.as_f64(),
+        Value::String(s) => s.parse::<f64>().ok(),
+        _ => None,
+    };
+    let Some(percent) = percent else { return };
+    let fraction = (percent / 100.0).clamp(0.0, 1.0) as f32;
+    let _ = app.run_on_main_thread(move || unsafe { harbor_ios_set_system_volume(fraction) });
 }
 
 #[derive(Default)]
@@ -111,6 +155,10 @@ pub async fn mpv_start(
     args: MpvStartArgs,
 ) -> Result<(), String> {
     stop_session(&state).await;
+    let _ = APP.set(app.clone());
+    if let Ok(mut hold) = VOLUME_WRITES_FROM.lock() {
+        *hold = Some(Instant::now() + STARTUP_VOLUME_HOLD);
+    }
 
     let layer = on_main_webview(&app, |wv| unsafe { harbor_ios_video_attach(wv) })?;
     if layer == 0 {
@@ -142,13 +190,18 @@ pub async fn mpv_start(
         // embedded desktop player), so mpv must not draw its own copy.
         init.set_property("sub-visibility", "no")?;
         init.set_property("keep-open", "yes")?;
+        // Loudness comes from the system volume; see set_system_volume.
+        let _ = init.set_property("volume", "100");
         init.set_property("cache", "yes")?;
         init.set_property("cache-on-disk", "no")?;
         // iPads hold far less RAM than the desktops the default 1.5 GB buffer
         // was sized for; iOS kills the app outright if it grows past its limit.
         init.set_property("demuxer-max-bytes", "150MiB")?;
         init.set_property("demuxer-max-back-bytes", "50MiB")?;
-        let _ = init.set_property("target-colorspace-hint", if hdr_to_sdr { "no" } else { "yes" });
+        let _ = init.set_property(
+            "target-colorspace-hint",
+            if hdr_to_sdr { "no" } else { "yes" },
+        );
         // MPVKit builds mpv for iOS without Lua, so `osc` (a Lua script option)
         // does not exist there; none of these may stop mpv from starting.
         let _ = init.set_property("input-default-bindings", "no");
@@ -174,8 +227,32 @@ pub async fn mpv_start(
     spawn_event_loop(app.clone(), mpv.clone(), events);
 
     let start = args.start_at_sec.filter(|s| *s > 0.0).unwrap_or(0.0);
-    let _ = mpv.set_property("network-timeout", if args.is_live.unwrap_or(false) { 30 } else { 60 });
-    mpv_argv_command(&mpv, &["loadfile", &args.url, "replace", "0", &format!("start={start}")])?;
+    let _ = mpv.set_property(
+        "network-timeout",
+        if args.is_live.unwrap_or(false) {
+            30
+        } else {
+            60
+        },
+    );
+    mpv_argv_command(
+        &mpv,
+        &[
+            "loadfile",
+            &args.url,
+            "replace",
+            "0",
+            &format!("start={start}"),
+        ],
+    )?;
+    {
+        // Show the iPad's volume once the player has finished restoring its own.
+        let app = app.clone();
+        std::thread::spawn(move || {
+            std::thread::sleep(STARTUP_VOLUME_HOLD);
+            emit_volume(&app, unsafe { harbor_ios_system_volume() });
+        });
+    }
 
     *state.inner.lock().await = Some(Session { mpv });
     Ok(())
@@ -206,9 +283,14 @@ fn spawn_event_loop(app: AppHandle, mpv: Arc<Mpv>, mut ctx: EventContext) {
                 Some(Ok(event)) => {
                     let shutdown = matches!(event, Event::Shutdown);
                     if let Event::PropertyChange { name, .. } = &event {
+                        // mpv sits at 100%; the volume the UI shows is the system's.
+                        if *name == "volume" {
+                            continue;
+                        }
                         if *name == "time-pos" {
                             let now = std::time::Instant::now();
-                            if last_timepos.is_some_and(|p| now.duration_since(p).as_millis() < 200) {
+                            if last_timepos.is_some_and(|p| now.duration_since(p).as_millis() < 200)
+                            {
                                 continue;
                             }
                             last_timepos = Some(now);
@@ -249,6 +331,7 @@ pub async fn mpv_command(state: State<'_, MpvState>, cmd: Vec<Value>) -> Result<
 
 #[tauri::command]
 pub async fn mpv_set_property(
+    app: AppHandle,
     state: State<'_, MpvState>,
     name: String,
     value: Value,
@@ -257,6 +340,10 @@ pub async fn mpv_set_property(
     if mpv_property_blocked(&name) {
         return Err(format!("mpv property not allowed: {name}"));
     }
+    if name == "volume" {
+        set_system_volume(&app, &value);
+        return Ok(());
+    }
     mpv.set_property(&name, value_to_arg(&value).as_str())
         .map_err(|e| format!("set {name}: {e}"))
 }
@@ -264,6 +351,10 @@ pub async fn mpv_set_property(
 #[tauri::command]
 pub async fn mpv_get_property(state: State<'_, MpvState>, name: String) -> Result<Value, String> {
     let mpv = state.handle().await?;
+    if name == "volume" {
+        let fraction = unsafe { harbor_ios_system_volume() };
+        return Ok(json!((fraction.clamp(0.0, 1.0) * 100.0).round()));
+    }
     let s = mpv
         .get_property::<String>(&name)
         .map_err(|e| format!("get {name}: {e}"))?;
@@ -296,11 +387,19 @@ pub async fn mpv_sub_add(
     select: Option<bool>,
 ) -> Result<(), String> {
     let mpv = state.handle().await?;
-    let flag = if select.unwrap_or(true) { "select" } else { "auto" };
+    let flag = if select.unwrap_or(true) {
+        "select"
+    } else {
+        "auto"
+    };
     let lang = lang.filter(|s| !s.is_empty()).unwrap_or_default();
-    let title = title
-        .filter(|s| !s.is_empty())
-        .unwrap_or_else(|| if lang.is_empty() { "Subtitle".into() } else { lang.clone() });
+    let title = title.filter(|s| !s.is_empty()).unwrap_or_else(|| {
+        if lang.is_empty() {
+            "Subtitle".into()
+        } else {
+            lang.clone()
+        }
+    });
     let mut argv = vec!["sub-add", url.as_str(), flag, title.as_str()];
     if !lang.is_empty() {
         argv.push(lang.as_str());
@@ -321,7 +420,13 @@ pub async fn mpv_sub_remove(state: State<'_, MpvState>, id: String) -> Result<()
 #[tauri::command]
 pub async fn mpv_set_geometry(app: AppHandle, geom: MpvGeometry) -> Result<(), String> {
     on_main_webview(&app, move |wv| unsafe {
-        harbor_ios_video_set_frame(wv, geom.css_left, geom.css_top, geom.css_width, geom.css_height)
+        harbor_ios_video_set_frame(
+            wv,
+            geom.css_left,
+            geom.css_top,
+            geom.css_width,
+            geom.css_height,
+        )
     })
 }
 
