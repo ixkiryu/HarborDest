@@ -6,7 +6,7 @@ import { App } from "@/App";
 import { hydrateCustomThemes } from "@/lib/custom-themes";
 import { getUiLanguage } from "@/lib/i18n/store";
 import { ensureUiLocale } from "@/lib/i18n/load-locale";
-import { applyOsDataset } from "@/lib/platform";
+import { applyOsDataset, osClass } from "@/lib/platform";
 import { loadSecrets } from "@/lib/secret-store";
 import { getInstallFeatures, loadInstallFeatures } from "@/lib/features/install";
 import { initSubtitleCache } from "@/lib/subtitles/subtitle-cache";
@@ -272,7 +272,17 @@ async function mount() {
     </StrictMode>,
   );
 }
-void mount().catch(() => {
+void mount().catch((error: unknown) => {
+  // The iPad has no console to read, so show why startup stopped instead of
+  // leaving the splash up forever.
+  if (osClass() === "ios") {
+    const boot = document.getElementById("harbor-boot");
+    const note = document.createElement("pre");
+    note.style.cssText =
+      "position:fixed;left:16px;right:16px;bottom:16px;color:#ccc;font:12px ui-monospace,monospace;white-space:pre-wrap";
+    note.textContent = `Startup failed: ${error instanceof Error ? (error.stack ?? error.message) : String(error)}`;
+    (boot ?? document.body).appendChild(note);
+  }
   if (isHdrOverlay) {
     void hdrOverlayEmitAction("hdr-stage://dead", {
       stageId: new URLSearchParams(window.location.search).get("stageId"),

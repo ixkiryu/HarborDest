@@ -5,10 +5,9 @@
 // is a single full-screen window, so answer those calls the way such a window
 // would and treat every change request as already satisfied.
 //
-// Other desktop-only plugins (updater, notification, clipboard, …) are not
-// built into the iPad app either. A call to one of them resolves to null, as
-// "nothing to report", instead of taking the interface down; any other error
-// still rejects normally.
+// Only these two plugins are answered here. Calls to other plugins the iPad
+// build lacks keep rejecting: their callers already catch that and fall back,
+// and resolving them with a placeholder breaks those fallbacks.
 //
 // Imported first by main.tsx so it is in place before any module calls in.
 
@@ -86,19 +85,10 @@ function install(): void {
   }
   if (!isIos) return;
   const invoke = internals.invoke.bind(internals);
-  const missing = new Set<string>();
   internals.invoke = (cmd, args, options) => {
     const match = /^plugin:(window|webview)\|(.+)$/.exec(cmd);
     if (match) return Promise.resolve(windowAnswer(match[2]));
-    return invoke(cmd, args, options).catch((error: unknown) => {
-      const plugin = /^Plugin (\S+) not initialized$/.exec(String(error))?.[1];
-      if (!plugin) throw error;
-      if (!missing.has(plugin)) {
-        missing.add(plugin);
-        console.warn(`[harbor] ${plugin} is not available on iPad; ignoring ${cmd}`);
-      }
-      return null;
-    });
+    return invoke(cmd, args, options);
   };
 }
 
